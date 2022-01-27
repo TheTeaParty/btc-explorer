@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package btcAPI;
+
+service BTCService {
+    rpc GetBlock (BlockRequest) returns (RawResponse);
+    rpc GetBlocks (BlockRequest) returns (RawResponse);
+    rpc GetTx (TxRequest) returns (RawResponse);
+    rpc GetTxs (TxsRequest) returns (RawResponse);
+    rpc GetOutputs (OutputRequest) returns (RawResponse);
+    rpc GetBalance (BalanceRequest) returns (RawResponse);
+    rpc GetBalanceJournal (BalanceJournalRequest) returns (RawResponse);
+}
+
+message OutputRequest {
+    string address = 1;
+    string network = 2;
+    bool isCoinBase = 3;
+    bool includeUnused = 4;
+}
+
+message BalanceJournalRequest {
+    string address = 1;
+    string network = 2;
+}
+
+message BalanceRequest {
+    string address = 1;
+    string network = 2;
+}
+
+message BlockRequest {
+    string hash_or_height = 1;
+    string network = 2;
+}
+
+message TxRequest {
+    string txID = 1;
+    string network = 2;
+}
+
+message TxsRequest {
+    string address = 1;
+    string network = 2;
+    string blockHash = 3;
+}
+
+message RawResponse {
+    bytes rawBody = 1;
+}

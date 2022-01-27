@@ -1,0 +1,115 @@
+cache:
+  paths:
+    - vendor/
+    - build/
+
+stages:
+  - install
+  - linter
+  - test
+  - build
+  - build-docker
+  - deploy-staging
+  - deploy-production
+
+install:
+  image: theteaparty/golang:v1.13
+  stage: install
+  before_script:
+    - echo "machine sources.witchery.io login $W_GIT_USER password $W_GIT_TOKEN" > ~/.netrc
+  script:
+    - GOPROXY=https://goproxy.io,direct GOPRIVATE=*.witchery.io go mod vendor -v
+  only:
+    - pushes
+    - branches
+    - tags
+linter:
+  image: theteaparty/golang:v1.13
+  stage: linter
+  allow_failure: true
+  variables:
+    GOOS: linux
+    GOARCH: amd64
+    CGO_ENABLED: 0
+  before_script:
+    - curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.19.1
+    - echo "machine sources.witchery.io login $W_GIT_USER password $W_GIT_TOKEN" > ~/.netrc
+  script:
+    - golangci-lint run --enable-all
+  only:
+    - pushes
+    - branches
+    - tags
+test:
+  image: theteaparty/golang:v1.13
+  stage: test
+  allow_failure: true
+  script:
+    - GOPROXY=https://goproxy.io,direct GOPRIVATE=*.witchery.io go test -mod=vendor -coverprofile .testCoverage.txt -v ./...
+  only:
+    - pushes
+    - branches
+    - tags
+build:
+  image: golang:1.13
+  stage: build
+  script:
+    - GOOS=linux GOARCH=amd64 CGO_ENABLED=0 GOPROXY=https://goproxy.io,direct go build -v -mod vendor -o build/app -a -installsuffix cgo ./cmd/server
+  only:
+    - pushes
+    - branches
+    - tags
+build-docker:
+  image: docker:18.09.7-dind
+  stage: build-docker
+  services:
+    - docker:18.09.7-dind
+  variables:
+    DOCKER_HOST: tcp://localhost:2375
+  script:
+    - docker info
+    - docker login $CI_REGISTRY --username=$CI_REGISTRY_USER --password=$CI_REGISTRY_PASSWORD
+    - docker build -t $CI_REGISTRY_IMAGE:latest .
+    - docker tag $CI_REGISTRY_IMAGE:latest $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+    - docker push $CI_REGISTRY_IMAGE:latest
+    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+  only:
+    - master
+    - /^release-.*$/i
+deploy-staging:
+  image: lwolf/helm-kubectl-docker:latest
+  stage: deploy-staging
+  environment:
+    name: staging
+  script:
+    - cp $KUBE_STAGING_CA_PEM $(pwd)/kube.ca.pem
+    - kubectl config set-cluster e2e --server="$KUBE_STAGING_URL" --certificate-authority="$(pwd)/kube.ca.pem"
+    - kubectl config set-credentials dev --token="${KUBE_STAGING_TOKEN}"
+    - kubectl config set-context default --cluster=e2e --user=dev
+    - kubectl config use-context default
+    - sed -i "s|#REPOSITORY|$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA|g" deployments/deployments.yaml
+    - sed -i "s|#NAME|$CI_PROJECT_NAMESPACE-$CI_PROJECT_NAME|g" deployments/deployments.yaml
+    - sed -i "s|#VERSION|$CI_COMMIT_SHORT_SHA|g" deployments/deployments.yaml
+    - kubectl apply -f deployments/deployments.yaml -n staging
+    - kubectl rollout restart deployment $CI_PROJECT_NAMESPACE-$CI_PROJECT_NAME -n staging
+  only:
+    - master
+deploy-production:
+  image: lwolf/helm-kubectl-docker:latest
+  stage: deploy-production
+  when: manual
+  environment:
+    name: production
+  script:
+    - cp $KUBE_CA_PEM $(pwd)/kube.ca.pem
+    - kubectl config set-cluster e2e --server="$KUBE_URL" --certificate-authority="$(pwd)/kube.ca.pem"
+    - kubectl config set-credentials dev --token="${KUBE_TOKEN}"
+    - kubectl config set-context default --cluster=e2e --user=dev
+    - kubectl config use-context default
+    - sed -i "s|#REPOSITORY|$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA|g" deployments/deployments.yaml
+    - sed -i "s|#NAME|$CI_PROJECT_NAMESPACE-$CI_PROJECT_NAME|g" deployments/deployments.yaml
+    - sed -i "s|#VERSION|$CI_COMMIT_SHORT_SHA|g" deployments/deployments.yaml
+    - kubectl apply -f deployments/deployments.yaml -n production
+    - kubectl rollout restart deployment $CI_PROJECT_NAMESPACE-$CI_PROJECT_NAME -n production
+  only:
+    - /^release-.*$/i

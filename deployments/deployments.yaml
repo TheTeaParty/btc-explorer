@@ -1,0 +1,136 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: #NAME
+  labels:
+    app: #NAME
+spec:
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      protocol: TCP
+  selector:
+    app: #NAME
+---
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: #NAME
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: #NAME
+  template:
+    metadata:
+      labels:
+        app: #NAME
+    spec:
+      containers:
+        - name: #NAME
+          image: #REPOSITORY
+          imagePullPolicy: Always
+          command: [
+            "./app",
+          ]
+          env:
+            - name: VERSION
+              value: #VERSION
+            - name: MONGODB_HOSTS
+              valueFrom:
+                configMapKeyRef:
+                  name: application
+                  key: MONGODB_HOSTS
+            - name: MONGODB_USERNAME
+              valueFrom:
+                configMapKeyRef:
+                  name: application
+                  key: MONGODB_USERNAME
+            - name: MONGODB_PASSWORD
+              valueFrom:
+                configMapKeyRef:
+                  name: application
+                  key: MONGODB_PASSWORD
+            - name: MONGODB_DATABASE
+              value: #NAME
+            - name: NATS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: application
+                  key: NATS_HOST
+            - name: NATS_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: application
+                  key: NATS_USER
+            - name: NATS_PASS
+              valueFrom:
+                configMapKeyRef:
+                  name: application
+                  key: NATS_PASS
+            - name: ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: application
+                  key: ENVIRONMENT
+            - name: ELASTIC_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: application
+                  key: ELASTIC_HOST
+            - name: BTC_MAIN_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: application
+                  key: BTC_MAIN_HOST
+            - name: BTC_MAIN_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: application
+                  key: BTC_MAIN_ENDPOINT
+            - name: BTC_MAIN_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: application
+                  key: BTC_MAIN_USER
+            - name: BTC_MAIN_PASS
+              valueFrom:
+                configMapKeyRef:
+                  name: application
+                  key: BTC_MAIN_PASS
+            - name: BTC_MAIN_CERT
+              valueFrom:
+                configMapKeyRef:
+                  name: application
+                  key: BTC_MAIN_CERT
+            - name: BTC_TEST_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: application
+                  key: BTC_TEST_HOST
+            - name: BTC_TEST_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: application
+                  key: BTC_TEST_ENDPOINT
+            - name: BTC_TEST_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: application
+                  key: BTC_TEST_USER
+            - name: BTC_TEST_PASS
+              valueFrom:
+                configMapKeyRef:
+                  name: application
+                  key: BTC_TEST_PASS
+            - name: BTC_TEST_CERT
+              valueFrom:
+                configMapKeyRef:
+                  name: application
+                  key: BTC_TEST_CERT
+          ports:
+            - containerPort: 80
+              name: port
+      imagePullSecrets:
+        - name: regcred
